@@ -18,6 +18,9 @@
 package org.apache.dubbo.admin.config;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.dubbo.admin.common.exception.ConfigurationException;
 import org.apache.dubbo.admin.common.util.Constants;
 import org.apache.dubbo.admin.registry.config.GovernanceConfiguration;
@@ -34,6 +37,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 
+import javax.annotation.PostConstruct;
 import java.util.Arrays;
 
 
@@ -66,7 +70,19 @@ public class ConfigCenter {
     private URL registryUrl;
     private URL metadataUrl;
 
+    @PostConstruct
+    public void init() throws Exception {
+        CuratorFramework zkClient = CuratorFrameworkFactory.builder().
+                connectString("127.0.0.1:2181").
+                retryPolicy(new ExponentialBackoffRetry(1000, 3)).build();
+        zkClient.start();
 
+        if (zkClient.checkExists().forPath("/dubbo/config/dubbo/dubbo.properties") == null) {
+            zkClient.create().creatingParentsIfNeeded().forPath("/dubbo/config/dubbo/dubbo.properties");
+        }
+        zkClient.setData().forPath("/dubbo/config/dubbo/dubbo.properties", ("dubbo.registry.address=zookeeper://127.0.0.1:2181\n" +
+                "dubbo.metadata-report.address=zookeeper://127.0.0.1:2181").getBytes());
+    }
 
     /*
      * generate dynamic configuration client
